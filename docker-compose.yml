@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: recon
+      POSTGRES_PASSWORD: recon
+      POSTGRES_DB: reconciliation
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recon -d reconciliation"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://recon:recon@db:5432/reconciliation
+      RECON_STORAGE: postgres
+      GUNICORN_WORKERS: "2"
+    ports:
+      - "8000:8000"
+
+  tests:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://recon:recon@db:5432/reconciliation
+      RUN_PG_TESTS: "1"
+    entrypoint: ["python", "-m", "pytest", "tests/", "-v"]
+    profiles: ["test"]
+
+volumes:
+  pgdata:
